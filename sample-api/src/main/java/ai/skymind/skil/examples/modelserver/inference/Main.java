@@ -2,8 +2,15 @@ package ai.skymind.skil.examples.modelserver.inference;
 
 import java.util.Arrays;
 
+import org.slf4j.LoggerFactory;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+
 public class Main {
     public static void main (String... args) throws Exception {
+        Logger root = (Logger)LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        root.setLevel(Level.ERROR);
+
         final String usage = "usage: quickstart | inference | directInference | normalizeUciData";
 
         if (args.length > 0) {
