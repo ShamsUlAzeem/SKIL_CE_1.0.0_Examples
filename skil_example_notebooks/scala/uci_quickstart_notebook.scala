@@ -12,16 +12,18 @@ import org.deeplearning4j.nn.graph._
 import org.deeplearning4j.nn.conf._
 import org.deeplearning4j.nn.conf.inputs._
 import org.deeplearning4j.nn.conf.layers._
-import org.deeplearning4j.nn.conf.layers._
+import org.deeplearning4j.nn.conf.graph.rnn.LastTimeStepVertex
 import org.deeplearning4j.nn.weights._
 import org.deeplearning4j.optimize.listeners._
 import org.deeplearning4j.api.storage.impl.RemoteUIStatsStorageRouter
 import org.deeplearning4j.ui.stats.StatsListener
-import org.deeplearning4j.datasets.datavec.SequenceRecordReaderDataSetIterator
+import org.deeplearning4j.datasets.datavec.RecordReaderMultiDataSetIterator
 import org.deeplearning4j.eval.Evaluation
 
 import org.datavec.api.transform._
+import org.datavec.api.records.reader.RecordReader
 import org.datavec.api.records.reader.SequenceRecordReader
+import org.datavec.api.records.reader.impl.csv.CSVRecordReader
 import org.datavec.api.records.reader.impl.csv.CSVSequenceRecordReader
 import org.datavec.api.split.NumberedFileInputSplit
 
@@ -30,9 +32,10 @@ import org.nd4j.linalg.learning.config._
 import org.nd4j.linalg.lossfunctions.LossFunctions._
 import org.nd4j.linalg.factory.Nd4j
 import org.nd4j.linalg.primitives.Pair
-import org.nd4j.linalg.dataset.api.iterator.DataSetIterator
-import org.nd4j.linalg.dataset.api.preprocessor.DataNormalization
-import org.nd4j.linalg.dataset.api.preprocessor.NormalizerStandardize
+import org.nd4j.linalg.dataset.api.iterator.MultiDataSetIterator
+import org.nd4j.linalg.dataset.api.preprocessor.MultiDataNormalization
+import org.nd4j.linalg.dataset.api.preprocessor.MultiNormalizerStandardize
+import org.nd4j.linalg.util.ArrayUtil
 
 import java.io.File
 import java.net.URL
@@ -89,11 +92,11 @@ def downloadUCIData() {
         val transposed: String = line.replaceAll(" +", "\n")
         //Labels: first 100 are label 0, second 100 are label 1, and so on
 
-        contentAndLabels.add(new Pair(transposed, {
-            lineCount += 1; lineCount - 1 } / 100))
+        contentAndLabels.add(new Pair(transposed, (lineCount / 100)))
+        lineCount += 1
     }
 
-    //Randomize and do a train/test split:
+    // Randomize and do a train/test split:
     Collections.shuffle(contentAndLabels, new Random(12345))
 
     //75% train, 25% test
@@ -105,21 +108,21 @@ def downloadUCIData() {
         var outPathLabels: File = null
         if (trainCount < nTrain) {
             outPathFeatures = new File(featuresDirTrain, trainCount + ".csv")
-            outPathLabels = new File(labelsDirTrain, trainCount + ".csv") {
-                trainCount += 1; trainCount - 1 }
+            outPathLabels = new File(labelsDirTrain, trainCount + ".csv")
+            trainCount += 1
         } else {
             outPathFeatures = new File(featuresDirTest, testCount + ".csv")
-            outPathLabels = new File(labelsDirTest, testCount + ".csv") {
-                testCount += 1; testCount - 1 }
+            outPathLabels = new File(labelsDirTest, testCount + ".csv")
+            testCount += 1
         }
 
         FileUtils.writeStringToFile(outPathFeatures, p.getFirst)
         FileUtils.writeStringToFile(outPathLabels, p.getSecond.toString)
     }
- }
- 
- // Download data as needed
- downloadUCIData()
+}
+
+// Download data as needed
+downloadUCIData()
 
 // Load the training data
 val trainFeatures: SequenceRecordReader = new CSVSequenceRecordReader()
@@ -129,7 +132,7 @@ trainFeatures.initialize(
         0,
         449))
 
-val trainLabels: SequenceRecordReader = new CSVSequenceRecordReader()
+val trainLabels: RecordReader = new CSVRecordReader()
 trainLabels.initialize(new NumberedFileInputSplit(
     labelsDirTrain.getAbsolutePath + "/%d.csv",
     0,
@@ -138,23 +141,31 @@ trainLabels.initialize(new NumberedFileInputSplit(
 val minibatch: Int = 10
 val numLabelClasses: Int = 6
 
-val trainData: DataSetIterator = new SequenceRecordReaderDataSetIterator(
-    trainFeatures,
-    trainLabels,
-    minibatch,
-    numLabelClasses,
-    false,
-    SequenceRecordReaderDataSetIterator.AlignmentMode.ALIGN_END)
+val trainData: MultiDataSetIterator = new RecordReaderMultiDataSetIterator.Builder(minibatch)
+    .addSequenceReader("features", trainFeatures)
+    .addReader("labels", trainLabels)
+    .addInput("features")
+    .addOutputOneHot("labels", 0, numLabelClasses)
+    .build()
 
 // Normalize the training data
-val normalizer: DataNormalization = new NormalizerStandardize()
+def makeNormalizer( mds:MultiDataSetIterator ) : MultiNormalizerStandardize = {
+    val n = new MultiNormalizerStandardize()
 
-// Collect training data statistics
-normalizer.fit(trainData)
-trainData.reset()
+    // Collect training data statistics
+    n.fit(mds)
+    mds.reset()
+    return n
+}
 
-//Use previously collected statistics to normalize on-the-fly
-    trainData.setPreProcessor(normalizer)
+val normalizer = makeNormalizer(trainData)
+val mean = normalizer.getFeatureMean(0)
+val std = normalizer.getFeatureStd(0)
+
+println(s"Mean: $mean, Std: $std")
+
+// Use previously collected statistics to normalize on-the-fly
+trainData.setPreProcessor(normalizer)
 
 // Load the test data
 val testFeatures: SequenceRecordReader = new CSVSequenceRecordReader()
@@ -163,57 +174,70 @@ testFeatures.initialize(new NumberedFileInputSplit(
     0,
     149))
 
-val testLabels: SequenceRecordReader = new CSVSequenceRecordReader()
+val testLabels: RecordReader = new CSVRecordReader()
 testLabels.initialize(
     new NumberedFileInputSplit(labelsDirTest.getAbsolutePath + "/%d.csv",
     0,
     149))
 
-val testData: DataSetIterator = new SequenceRecordReaderDataSetIterator(
-    testFeatures,
-    testLabels,
-    minibatch,
-    numLabelClasses,
-    false,
-     SequenceRecordReaderDataSetIterator.AlignmentMode.ALIGN_END)
+val testData: MultiDataSetIterator = new RecordReaderMultiDataSetIterator.Builder(minibatch)
+    .addSequenceReader("features", testFeatures)
+    .addReader("labels", testLabels)
+    .addInput("features")
+    .addOutputOneHot("labels", 0, numLabelClasses)
+    .build()
 
 testData.setPreProcessor(normalizer)
 
 // Configure the network
-val conf: MultiLayerConfiguration = new NeuralNetConfiguration.Builder()
+val conf: ComputationGraphConfiguration = new NeuralNetConfiguration.Builder()
+    .seed(123)
     .optimizationAlgo(OptimizationAlgorithm.STOCHASTIC_GRADIENT_DESCENT)
     .iterations(1)
-    //.updater(Updater.NESTEROVS)
-    .updater(new Nesterovs(0.006, 0.9))
-    //.momentum(0.9)
-    //.learningRate(0.005)
-    .gradientNormalization(
-        GradientNormalization.ClipElementWiseAbsoluteValue)
+    .weightInit(WeightInit.XAVIER)
+    .updater(new Nesterovs(0.005, 0.9))
+    .gradientNormalization(GradientNormalization.ClipElementWiseAbsoluteValue)
     .gradientNormalizationThreshold(0.5)
-    .list()
-    .layer(0,
-           new GravesLSTM.Builder().activation(Activation.TANH).nIn(1).nOut(10).build())
-    .layer(1, new RnnOutputLayer.Builder(LossFunction.MCXENT)
-           .activation(Activation.SOFTMAX)
-           .nIn(10)
-           .nOut(numLabelClasses)
-           .build())
+    .graphBuilder()
+    .addInputs("input")
+    .setInputTypes(InputType.recurrent(1))
+    .addLayer("lstm", new GravesLSTM.Builder().activation(Activation.TANH).nIn(1).nOut(10).build(), "input")
+    .addVertex("pool", new LastTimeStepVertex("input"), "lstm")
+    .addLayer("output", new OutputLayer.Builder(LossFunction.MCXENT)
+           .activation(Activation.SOFTMAX).nIn(10).nOut(numLabelClasses).build(), "pool")
+    .setOutputs("output")
     .pretrain(false)
     .backprop(true)
     .build()
 
-val network_model: MultiLayerNetwork = new MultiLayerNetwork(conf)
+val network_model: ComputationGraph = new ComputationGraph(conf)
 network_model.init()
-//net.setListeners(new ScoreIterationListener(20))
+
+def eval(it:MultiDataSetIterator) : Evaluation = {
+    val evaluation = new Evaluation(numLabelClasses)
+
+    it.reset()
+    while (it.hasNext()) {
+        val ds = it.next()
+        val prediction = network_model.outputSingle(ds.getFeatures(0))
+
+        evaluation.eval(ds.getLabels(0), prediction)
+    }
+
+    return evaluation
+}
 
 // Train the network, evaluating the test set performance at each step
-val nEpochs: Int = 2
+trainData.reset()
+testData.reset()
+
+val nEpochs: Int = 40
 
 for (i <- 0 until nEpochs) {
     network_model.fit(trainData)
 
-    //Evaluate on the test set:
-    val evaluation: Evaluation = network_model.evaluate(testData)
+    // Evaluate on the test set:
+    val evaluation = eval(testData)
     var accuracy = evaluation.accuracy()
     var f1 = evaluation.f1()
 
@@ -223,6 +247,22 @@ for (i <- 0 until nEpochs) {
     trainData.reset()
 }
 
-var evaluation = network_model.evaluate(testData)
+// Save Model
+var evaluation = eval(testData)
 val modelId = skilContext.addModelToExperiment(z, network_model)
 val evalId = skilContext.addEvaluationToModel(z, modelId, evaluation)
+
+// Test one record (label should be 1)
+val record = Array(Array(Array(
+    -1.65, 1.38, 1.37, 2.56, 2.72, 0.64, 0.76, 0.45, -0.28, -2.72, -2.85, -2.27, -1.23, -1.42, 0.90,
+    1.81, 2.77, 1.12, 2.25, 1.26, -0.23, -0.27, -1.74, -1.90, -1.56, -1.35, -0.54, 0.41, 1.20, 1.59,
+    1.66, 0.75, 0.96, 0.07, -0.70, -0.32, -1.13, -0.77, -0.96, -0.55, 0.39, 0.56, 0.52, 0.98, 0.91,
+    0.23, -0.13, -0.31, -0.98, -0.73, -0.85, -0.77, -0.80, -0.04, 0.64, 0.77, 0.50, 0.98, 0.40, 0.24
+)))
+
+var flattened = ArrayUtil.flattenDoubleArray(record)
+var input = Nd4j.create(flattened, Array(1, 1, 60), 'c')
+var output = network_model.output(input)
+var label = Nd4j.argMax(output(0), -1)
+
+println(s"Label: $label")
