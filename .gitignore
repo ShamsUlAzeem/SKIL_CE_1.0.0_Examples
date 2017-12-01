@@ -30,3 +30,8 @@ target/
 
 # Mac stuff
 .DS_Store
+
+sample-api/.project
+sample-api/.classpath
+sample-api/.settings
+sample-api/.vscode
