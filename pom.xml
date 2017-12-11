@@ -3,8 +3,7 @@
 
     <groupId>ai.skymind.skil.examples</groupId>
     <artifactId>skil-ce-examples</artifactId>
-    <version>0.9.1</version>
-    <modelVersion>4.0.0</modelVersion>
+    <version>1.0.0</version>
     <packaging>pom</packaging>
 
     <name>SKIL CE examples parent</name>
