@@ -1,9 +1,16 @@
 package ai.skymind.skil.examples.endpoints.auth;
 
+import com.mashape.unirest.http.Unirest;
+import com.mashape.unirest.http.exceptions.UnirestException;
+import org.json.JSONObject;
+
+import java.text.MessageFormat;
+
 public class Login {
 
-    String host;
-    String port;
+    private String host;
+    private String port;
+    private String endpoint = "/login";
 
     public Login() {
         this.host = "localhost";
@@ -16,6 +23,23 @@ public class Login {
     }
 
     public String getAuthToken(String userId, String password) {
-        return null;
+        String authToken = null;
+
+        try {
+            authToken =
+                    Unirest.post(MessageFormat.format("http://{0}:{1}{2}", host, port, endpoint))
+                            .header("accept", "application/json")
+                            .header("Content-Type", "application/json")
+                            .body(new JSONObject() //Using this because the field functions couldn't get translated to an acceptable json
+                                    .put("userId", userId)
+                                    .put("password", password)
+                                    .toString())
+                            .asJson()
+                            .getBody().getObject().getString("token");
+        } catch (UnirestException e) {
+            e.printStackTrace();
+        }
+
+        return authToken;
     }
 }
