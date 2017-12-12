@@ -75,4 +75,21 @@ public class Deployment {
 
         return addedDeployment;
     }
+
+    public JSONArray getModelsForDeployment(int id) {
+        JSONArray allModelsOfDeployment = new JSONArray();
+
+        try {
+            allModelsOfDeployment =
+                    Unirest.get(MessageFormat.format("http://{0}:{1}/deployment/{2}/models", host, port, id))
+                            .header("accept", "application/json")
+                            .header("Content-Type", "application/json")
+                            .asJson()
+                            .getBody().getArray();
+        } catch (UnirestException e) {
+            e.printStackTrace();
+        }
+
+        return allModelsOfDeployment;
+    }
 }
