@@ -10,7 +10,6 @@ public class Login {
 
     private String host;
     private String port;
-    private String endpoint = "/login";
 
     public Login() {
         this.host = "localhost";
@@ -27,7 +26,7 @@ public class Login {
 
         try {
             authToken =
-                    Unirest.post(MessageFormat.format("http://{0}:{1}{2}", host, port, endpoint))
+                    Unirest.post(MessageFormat.format("http://{0}:{1}/login", host, port))
                             .header("accept", "application/json")
                             .header("Content-Type", "application/json")
                             .body(new JSONObject() //Using this because the field functions couldn't get translated to an acceptable json
