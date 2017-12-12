@@ -3,6 +3,7 @@ package ai.skymind.skil.examples;
 import ai.skymind.skil.examples.endpoints.Authorization;
 import ai.skymind.skil.examples.endpoints.Deployment;
 import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.text.MessageFormat;
 
@@ -16,6 +17,10 @@ public class Main {
         JSONArray deployments = deployment.getAllDeployments();
         System.out.println(deployments);
 
+        JSONObject deploymentById = deployment.getDeploymentById(0);
+        System.out.println(deploymentById);
 
+        JSONObject addedDeployment = deployment.addDeployment("New deployment");
+        System.out.println(addedDeployment);
     }
 }
