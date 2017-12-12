@@ -1,9 +1,8 @@
-package ai.skymind.skil.examples.endpoints.deployments;
+package ai.skymind.skil.examples.endpoints;
 
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
 import org.json.JSONArray;
-import org.json.JSONObject;
 
 import java.text.MessageFormat;
 

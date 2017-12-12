@@ -1,4 +1,4 @@
-package ai.skymind.skil.examples.endpoints.auth;
+package ai.skymind.skil.examples.endpoints;
 
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
@@ -6,17 +6,17 @@ import org.json.JSONObject;
 
 import java.text.MessageFormat;
 
-public class Login {
+public class Authorization {
 
     private String host;
     private String port;
 
-    public Login() {
+    public Authorization() {
         this.host = "localhost";
         this.port = "9008";
     }
 
-    public Login(String host, String port) {
+    public Authorization(String host, String port) {
         this.host = host;
         this.port = port;
     }
