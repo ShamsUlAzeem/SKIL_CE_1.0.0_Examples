@@ -7,7 +7,7 @@ public class Login {
 
     public Login() {
         this.host = "localhost";
-        this.port = "9008"
+        this.port = "9008";
     }
 
     public Login(String host, String port) {
@@ -16,6 +16,6 @@ public class Login {
     }
 
     public String getAuthToken(String userId, String password) {
-
+        return null;
     }
 }
